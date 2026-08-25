@@ -1,0 +1,1 @@
+# kb-platform backend package
