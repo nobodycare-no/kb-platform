@@ -89,3 +89,47 @@ async def test_replace_same_unit_twice_no_duplicates(store: MilvusStore):
     store.replace_chunks(unit_id=103, items=items, vectors=vecs)
     store.replace_chunks(unit_id=103, items=items, vectors=vecs)
     assert store.count_chunks_for_unit(103) == 3
+
+
+# ---------- 内部索引端点全链路（embed stub + 真实 Milvus）----------
+
+async def test_internal_kb_index_end_to_end():
+    import json
+
+    import httpx
+    from fastapi.testclient import TestClient
+
+    from app.core.config import Settings
+    from app.gateway.model_gateway import ModelGateway
+    from app.main import create_app
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        docs = body["embedding_documents"]
+        vecs = [[1.0 if i == (ord(d[0]) % DIM) else 0.0 for i in range(DIM)] for d in docs]
+        return httpx.Response(200, json={"dense": vecs, "sparse": []})
+
+    settings = Settings(
+        internal_token="t", milvus_uri=URI, embed_dim=DIM,
+        llm_base_url="", embedding_base_url="http://bge-stub",
+        embedding_protocol="autodl_bge", rerank_url="", rerank_health_url="",
+    )
+    app = create_app(ModelGateway(settings, transport=httpx.MockTransport(handler)))
+    client = TestClient(app)
+    headers = {"X-Internal-Token": "t"}
+
+    resp = client.post("/internal/kb/index",
+                       json={"unit_id": 777, "chunks": [
+                           {"seq": 0, "text": "甲文档"}, {"seq": 1, "text": "乙文档"}]},
+                       headers=headers)
+    assert resp.status_code == 200 and resp.json()["indexed"] == 2
+
+    store = app.state.milvus
+    assert store.count_chunks_for_unit(777) == 2
+
+    # 未带令牌 → 401
+    assert client.post("/internal/kb/index", json={"unit_id": 1, "chunks": []}).status_code == 401
+
+    deleted = client.delete("/internal/kb/unit/777", headers=headers)
+    assert deleted.status_code == 200
+    assert store.count_chunks_for_unit(777) == 0

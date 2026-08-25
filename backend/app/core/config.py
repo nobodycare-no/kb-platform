@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     milvus_uri: str = "localhost:19530"
 
+    # ai-service（服务间调用）
+    ai_service_base_url: str = "http://ai-service:8001"
+
     # 模型接入（backend 不直连，仅供透传给 ai-service 的部署一致性检查）
     llm_base_url: str = ""
     embedding_base_url: str = ""

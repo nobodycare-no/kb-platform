@@ -14,6 +14,8 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import httpx  # noqa: E402
+
 from app.core.security import hash_password  # noqa: E402
 from app.db import get_db  # noqa: E402
 from app.main import create_app  # noqa: E402
@@ -68,6 +70,7 @@ def users(db):
         UserRole(user_id=it001.id, role_id=asker_role.id),
         RolePermission(role_id=kb_admin_role.id, permission_code="org:user:view"),
         RolePermission(role_id=kb_admin_role.id, permission_code="org:user:edit"),
+        RolePermission(role_id=kb_admin_role.id, permission_code="kb:unit:edit"),
         RolePermission(role_id=asker_role.id, permission_code="ai:chat"),
     ])
     db.commit()
@@ -79,6 +82,43 @@ def client(db):
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db
     return TestClient(app)
+
+
+@pytest.fixture()
+def ais_stub(db, tmp_path, monkeypatch):
+    """导入管线测试桩：Mock 捕获 ai-service 的索引/删除调用；blob 写入临时目录。"""
+    import json as _json
+
+    monkeypatch.setenv("UPLOAD_DIR", str(tmp_path))
+    calls = {"index": [], "delete": []}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/internal/kb/index"):
+            body = _json.loads(request.content)
+            calls["index"].append(body)
+            return httpx.Response(200, json={"indexed": len(body["chunks"])})
+        if "/internal/kb/unit/" in path:
+            calls["delete"].append(int(path.rsplit("/", 1)[-1]))
+            return httpx.Response(200, json={"deleted": 1})
+        return httpx.Response(404, json={})
+
+    from app.services.import_pipeline import ImportPipeline
+
+    pipeline = ImportPipeline(
+        lambda: TestingSession(),
+        ai_base_url="http://ais-stub",
+        internal_token="stub-token",
+        transport=httpx.MockTransport(handler),
+    )
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: db
+    app.state.import_pipeline = pipeline
+    app.state.import_inline = True       # 测试：同步处理保证确定性
+    client = TestClient(app)
+    client.ais_calls = calls          # type: ignore[attr-defined]
+    return client
 
 
 @pytest.fixture()
