@@ -11,7 +11,7 @@ from app.models.base import Base, TimestampMixin
 class QaSession(TimestampMixin, Base):
     __tablename__ = "qa_sessions"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     title: Mapped[str] = mapped_column(String(128), default="新会话")
 
@@ -19,7 +19,7 @@ class QaSession(TimestampMixin, Base):
 class QaAccessLog(Base):
     __tablename__ = "qa_access_logs"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     user_id: Mapped[int] = mapped_column(BigInteger, index=True)
     question: Mapped[str] = mapped_column(Text)

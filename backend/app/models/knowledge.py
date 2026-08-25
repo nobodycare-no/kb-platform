@@ -11,7 +11,7 @@ from app.models.base import Base, TimestampMixin
 class KnowledgeUnit(TimestampMixin, Base):
     __tablename__ = "knowledge_units"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     unit_code: Mapped[str] = mapped_column(String(64), unique=True)
     title: Mapped[str] = mapped_column(String(255))
     content: Mapped[str] = mapped_column(Text)
@@ -26,7 +26,7 @@ class KnowledgeUnit(TimestampMixin, Base):
 class KnowledgeChunk(Base):
     __tablename__ = "knowledge_chunks"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     unit_id: Mapped[int] = mapped_column(BigInteger, index=True)
     seq_no: Mapped[int] = mapped_column(Integer, default=0)
     content: Mapped[str] = mapped_column(Text)
@@ -37,7 +37,7 @@ class KnowledgeChunk(Base):
 class UnitPermission(Base):
     __tablename__ = "unit_permissions"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     unit_id: Mapped[int] = mapped_column(BigInteger, index=True)
     target_type: Mapped[str] = mapped_column(String(16))
     target_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
@@ -47,7 +47,7 @@ class UnitPermission(Base):
 class ImportTask(Base):
     __tablename__ = "import_tasks"
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     batch_no: Mapped[str] = mapped_column(String(32), index=True)
     file_name: Mapped[str] = mapped_column(String(255))
     file_type: Mapped[str] = mapped_column(String(16), default="")
