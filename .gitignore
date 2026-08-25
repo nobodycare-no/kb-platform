@@ -1,0 +1,32 @@
+# ---- secrets ----
+.env
+*.env.local
+
+# ---- python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# ---- node / vue ----
+node_modules/
+dist/
+.vite/
+*.local
+
+# ---- runtime data ----
+uploads/
+runtime_logs/
+*.log
+
+# ---- IDE / OS ----
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# ---- docker local volumes ----
+deploy/volumes/
