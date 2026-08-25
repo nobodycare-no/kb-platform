@@ -53,6 +53,9 @@ services:
   milvus-standalone:
     image: milvusdb/milvus:v2.4.15
     command: ["milvus", "run", "standalone"]
+    # 开发便利：仅回环地址映射，宿主机 pytest 可直连；生产 override 必须移除
+    ports:
+      - "127.0.0.1:19530:19530"
     environment:
       ETCD_ENDPOINTS: milvus-etcd:2379
       MINIO_ADDRESS: milvus-minio:9000
