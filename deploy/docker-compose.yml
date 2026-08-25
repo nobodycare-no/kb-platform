@@ -1,0 +1,107 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-root123456}"
+      MYSQL_DATABASE: kb_platform
+      MYSQL_USER: kb
+      MYSQL_PASSWORD: "${DB_PASSWORD:-kb123456}"
+    command: >
+      --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+      --ngram_token_size=2
+    volumes:
+      - "./mysql/init:/docker-entrypoint-initdb.d:ro"
+      - "mysql_data:/var/lib/mysql"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-root123456}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [kbnet]
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [kbnet]
+
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.14
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+    command: etcd -advertise-client-urls=http://milvus-etcd:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    networks: [kbnet]
+
+  milvus-minio:
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    command: minio server /minio_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    networks: [kbnet]
+
+  milvus-standalone:
+    image: milvusdb/milvus:v2.4.15
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+      COMMON_STORAGETYPE: local
+    depends_on:
+      milvus-etcd:
+        condition: service_started
+      milvus-minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+    networks: [kbnet]
+
+  backend:
+    build: ../backend
+    env_file: ../.env
+    environment:
+      MYSQL_URL: "mysql+pymysql://kb:${DB_PASSWORD:-kb123456}@mysql:3306/kb_platform?charset=utf8mb4"
+      REDIS_URL: "redis://redis:6379/0"
+      MILVUS_URI: "milvus-standalone:19530"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [kbnet]
+
+  ai-service:
+    build: ../ai-service
+    env_file: ../.env
+    networks: [kbnet]
+
+  web:
+    image: nginx:alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - "../web/dist:/usr/share/nginx/html:ro"
+      - "./nginx.conf:/etc/nginx/conf.d/default.conf:ro"
+    depends_on:
+      - backend
+    networks: [kbnet]
+
+networks:
+  kbnet:
+    driver: bridge
+
+volumes:
+  mysql_data:

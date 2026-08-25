@@ -131,7 +131,8 @@ erDiagram
 ### 3.2 设计要点
 - `knowledge_chunks.content_hash` 用于 reindex 增量比对；`qa_access_logs.recalled/authorized/unauthorized` 三个 JSON 是审计与沉淀挖掘的数据底座；
 - `faqs.question` 建唯一索引防重复发布；`knowledge_gaps.question_pattern` 为聚类代表问题；
-- MySQL 8 ngram FULLTEXT：`knowledge_chunks(content)` WITH PARSER ngram，支撑关键词召回腿。
+- MySQL 8 ngram FULLTEXT：`knowledge_chunks(content)` WITH PARSER ngram，支撑关键词召回腿；
+- 工程细节列（`users.is_super` 超管旁路、`import_tasks.batch_no` 批次、`qa_access_logs.faq_hit/degraded` 降级标记）以 `deploy/mysql/init/01_schema.sql` 为准。
 
 ## 4. 核心时序图
 
@@ -267,6 +268,7 @@ check(user_id, unit_ids):
 | MINE_MIN_FREQ | 3 | 挖掘成候选 FAQ 的最低频次 |
 | EMBED_DIM | 1024 | bge-m3 dense |
 | LLM_FAIL_SWITCH | 2 | 连续失败切换备用端点次数 |
+| MAX_MODEL_LEN | 8192 | vLLM 上下文上限；Prompt 总预算（系统词+6片段+历史摘要+问题）≤6500 tokens，输出预留 ≥1000 |
 
 ## 8. 配置项全表（deploy/.env.example）
 
@@ -277,19 +279,21 @@ MYSQL_URL=mysql+pymysql://kb:${DB_PASSWORD}@mysql:3306/kb_platform?charset=utf8m
 REDIS_URL=redis://redis:6379/0
 JWT_SECRET=change-me
 INTERNAL_TOKEN=change-me-too
-# --- 模型（AutoDL 换址只改这里）---
-LLM_BASE_URL=http://your-autodl-host:PORT/v1
-LLM_API_KEY=sk-xxx
+# --- 模型（AutoDL 双端口：6006=LLM，6008=bge-m3+reranker 同进程）---
+LLM_BASE_URL=http://your-autodl-host:6006/v1
+LLM_API_KEY=sk-atguigu
 LLM_MODEL=qwen3-8b
+LLM_MAX_CONTEXT=8192
+LLM_FAIL_SWITCH=2
 LLM_FALLBACK_BASE_URL=https://api.openai-compat.example/v1
 LLM_FALLBACK_API_KEY=sk-yyy
 LLM_FALLBACK_MODEL=gpt-5.6-luna
-EMBEDDING_BASE_URL=http://your-autodl-host:PORT
-EMBEDDING_API_KEY=sk-zzz
+EMBEDDING_BASE_URL=http://your-autodl-host:6008
+EMBEDDING_PROTOCOL=autodl_bge     # autodl_bge | openai
 EMBEDDING_MODEL=bge-m3
-RERANK_URL=http://your-autodl-host:PORT/rerank
-RERANK_API_KEY=sk-zzz
-RERANK_PROTOCOL=tei              # tei | custom
+RERANK_URL=http://your-autodl-host:6008/v1/rerank
+RERANK_HEALTH_URL=http://your-autodl-host:6008/health
+RERANK_PROTOCOL=custom            # custom={"query","documents"}->{"scores"}（AutoDL 实际协议）| tei
 MILVUS_URI=milvus-standalone:19530
 # --- 业务参数见 SDD §7 ---
 ```
