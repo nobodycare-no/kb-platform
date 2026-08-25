@@ -262,6 +262,8 @@ check(user_id, unit_ids):
 | RRF_K | 60 | 融合常数 |
 | RERANK_TOP_N | 6 | 进 Prompt 的片段数 |
 | FAQ_EXACT_SIM / GAP_SIM | 0.92 / 0.35 | 缓存直答阈值 / 缺口判定 |
+| KEYWORD_TIMEOUT_MS | 200 | 关键词召回腿超时熔断；超时弃用该路并置 degraded=true |
+| PERM_SNAPSHOT_TTL | 300 | 权限快照 Redis TTL（秒）；授权变更经 watermark 失效 |
 | MINE_MIN_FREQ | 3 | 挖掘成候选 FAQ 的最低频次 |
 | EMBED_DIM | 1024 | bge-m3 dense |
 | LLM_FAIL_SWITCH | 2 | 连续失败切换备用端点次数 |
