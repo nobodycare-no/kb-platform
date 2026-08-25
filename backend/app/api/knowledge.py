@@ -216,3 +216,47 @@ def delete_unit(
     db.delete(u)
     db.commit()
     return ok({"deleted": unit_id})
+
+
+# ---------- 鉴权回调（FR-C03，RAG 链路核心依赖）----------
+
+@router.post("/check-permissions")
+def check_permissions(
+    payload: dict,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+):
+    """ai-service 召回后回调；登录用户也可自查。
+
+    授权：JWT 用户仅可查本人；内部令牌或超管可查任意用户。
+    响应附带 units 元数据（标题/编码），供引用卡片与缺失提示使用。
+    """
+    from app.internal.deps import has_internal_token
+    from app.services.permission_service import PermissionService
+
+    try:
+        target_user_id = int(payload["user_id"])
+        unit_ids = [int(x) for x in payload.get("unit_ids", [])]
+    except (KeyError, TypeError, ValueError):
+        raise ApiError(400, 4400, "user_id 与 unit_ids 必填") from None
+
+    if target_user_id != user.id and not (user.is_super or has_internal_token(request)):
+        raise ApiError(403, 4303, "只能查询本人权限")
+
+    target = db.query(User).filter(User.id == target_user_id).first()
+    if target is None:
+        raise ApiError(404, 4404, "目标用户不存在")
+
+    result = PermissionService(db).check(
+        user_id=target.id, department_id=target.department_id,
+        is_super=bool(target.is_super), unit_ids=unit_ids,
+    )
+
+    meta: dict[str, dict] = {}
+    if unit_ids:
+        for u in db.query(KnowledgeUnit).filter(KnowledgeUnit.id.in_(unit_ids)).all():
+            meta[str(u.id)] = {"title": u.title, "unit_code": u.unit_code}
+    return ok({"authorized": result.authorized,
+               "unauthorized": result.unauthorized,
+               "units": meta})

@@ -7,7 +7,8 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from app.api import auth, health, knowledge, org
+from app.api import ai, auth, health, knowledge, org
+from app.internal import routes as internal_routes
 from app.core.errors import ApiError
 from app.core.responses import err
 
@@ -31,6 +32,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(org.router)
     app.include_router(knowledge.router)
+    app.include_router(ai.router)
+    app.include_router(internal_routes.router)
     return app
 
 

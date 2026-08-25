@@ -6,14 +6,20 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import hmac
+import json
+from contextlib import asynccontextmanager
+from typing import AsyncIterator
+
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import Settings, get_settings
 from app.gateway.model_gateway import ModelGateway
 
 
-def create_app(gateway: ModelGateway | None = None, settings: Settings | None = None) -> FastAPI:
+def create_app(gateway: ModelGateway | None = None, settings: Settings | None = None,
+               chain_ctx=None) -> FastAPI:
     gw = gateway or ModelGateway(settings or get_settings())
 
     @asynccontextmanager
@@ -24,6 +30,7 @@ def create_app(gateway: ModelGateway | None = None, settings: Settings | None = 
     app = FastAPI(title="kb-platform ai-service", version="0.2.0", lifespan=lifespan)
     app.state.gateway = gw
     app.state.milvus = None
+    app.state.chain_ctx = chain_ctx   # 允许测试/部署方注入预构建上下文
 
     def verify_internal(x_internal_token: str = Header(default="")) -> None:
         if not hmac.compare_digest(x_internal_token, gw.settings.internal_token):
@@ -79,6 +86,72 @@ def create_app(gateway: ModelGateway | None = None, settings: Settings | None = 
             raise HTTPException(status_code=503, detail=f"milvus unavailable: {e}") from e
         store.delete_unit(unit_id)
         return {"deleted": unit_id}
+
+    # ---------- 鉴权 RAG 流式问答（SDD §4.1）----------
+
+    def _chain_ctx():
+        from app.chain.auth_rag import ChainContext
+        from app.retrieval.faq_cache import FaqCacheService
+
+        if app.state.chain_ctx is None:
+            async def fetch_faq_answer(faq_id: int) -> dict | None:
+                client = gw._http()
+                try:
+                    resp = await client.get(
+                        f"{gw.settings.backend_base_url}/internal/faq/{faq_id}",
+                        headers={"X-Internal-Token": gw.settings.internal_token},
+                        timeout=3,
+                    )
+                    if resp.status_code == 200:
+                        return resp.json()
+                except Exception:
+                    pass
+                return None
+
+            faq_cache = FaqCacheService(
+                gateway=gw,
+                store=_store(),
+                redis_client=None,          # Redis 快照在 S7 接入（FR-C04 P1）
+                faq_answer_fetcher=fetch_faq_answer,
+                exact_sim=gw.settings.faq_exact_sim,
+            )
+            app.state.chain_ctx = ChainContext(
+                gateway=gw,
+                store_provider=_store,
+                faq_cache=faq_cache,
+                backend_base_url=gw.settings.backend_base_url,
+                internal_token=gw.settings.internal_token,
+                dense_top_k=gw.settings.dense_top_k,
+                keyword_top_k=gw.settings.keyword_top_k,
+                keyword_timeout_ms=gw.settings.keyword_timeout_ms,
+                rrf_k=gw.settings.rrf_k,
+                rerank_top_n=gw.settings.rerank_top_n,
+            )
+        return app.state.chain_ctx
+
+    class RagStreamRequest(BaseModel):
+        user_id: int
+        department_id: int | None = None
+        is_super: bool = False
+        session_id: int | None = None
+        question: str
+
+    @app.post("/internal/rag/stream", dependencies=[Depends(verify_internal)])
+    async def rag_stream(req: RagStreamRequest) -> StreamingResponse:
+        from app.chain.auth_rag import run_stream
+
+        ctx = _chain_ctx()
+
+        async def event_gen() -> AsyncIterator[bytes]:
+            try:
+                async for event, data in run_stream(ctx, **req.model_dump()):
+                    yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode("utf-8")
+            except Exception as e:  # 兜底：任何未预期异常转为 error 事件
+                yield f"event: error\ndata: {json.dumps({'message': str(e)[:200]}, ensure_ascii=False)}\n\n".encode("utf-8")
+
+        return StreamingResponse(event_gen(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache",
+                                          "X-Accel-Buffering": "no"})
 
     return app
 

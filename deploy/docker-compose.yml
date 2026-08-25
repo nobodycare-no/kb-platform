@@ -6,6 +6,9 @@ services:
       MYSQL_DATABASE: kb_platform
       MYSQL_USER: kb
       MYSQL_PASSWORD: "${DB_PASSWORD:-kb123456}"
+    # 开发便利：仅回环映射，宿主机 E2E 测试直连；生产 override 必须移除
+    ports:
+      - "127.0.0.1:13306:3306"
     command: >
       --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
       --ngram_token_size=2

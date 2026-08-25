@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     # 服务间信任
     internal_token: str = "dev-internal-token"
+    backend_base_url: str = "http://backend:8000"
 
     # --- LLM（OpenAI 兼容，vLLM）---
     llm_base_url: str = ""
