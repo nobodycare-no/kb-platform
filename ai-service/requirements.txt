@@ -1,0 +1,19 @@
+# ===== web 框架 =====
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30
+
+# ===== 配置/校验 =====
+pydantic>=2.7
+pydantic-settings>=2.2
+
+# ===== 模型接入（全 httpx 原生实现，便于 MockTransport 测试）=====
+httpx>=0.27
+
+# ===== 向量库 =====
+pymilvus>=2.4
+
+# ===== 安全 =====
+
+# ===== 测试 =====
+pytest>=8.2
+pytest-asyncio>=0.23
