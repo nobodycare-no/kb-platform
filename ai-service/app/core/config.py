@@ -39,10 +39,11 @@ class Settings(BaseSettings):
     rerank_protocol: str = "custom"            # custom | tei
     rerank_timeout_s: int = 60
 
-    # --- Milvus ---
+    # --- Milvus / Redis ---
     milvus_uri: str = "milvus-standalone:19530"
     milvus_kb_collection: str = "kb_chunks"
     milvus_faq_collection: str = "faq_vectors"
+    redis_url: str = "redis://redis:6379/0"
 
     # --- 检索参数（SDD §7）---
     dense_top_k: int = 50

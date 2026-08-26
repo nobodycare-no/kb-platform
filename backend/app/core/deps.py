@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import ApiError
+from app.core.redis_client import get_redis
 from app.core.security import JWTError, decode_token
 from app.db import get_db
 from app.models import User
@@ -43,7 +44,8 @@ def require_perms(*codes: str) -> Callable:
         user = resolve_user(request, db)
         if user.is_super:
             return user
-        have = set(PermissionService(db).permission_codes(user.id))
+        svc = PermissionService(db, redis_client=get_redis())
+        have = set(svc.permission_codes(user.id))
         if not have.intersection(codes):
             raise ApiError(403, 4303, "无权执行该操作", {"required": list(codes)})
         return user

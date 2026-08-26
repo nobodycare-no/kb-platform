@@ -21,59 +21,45 @@ from app.services.import_pipeline import ImportPipeline
 
 PASSWORD = "Abc12345!"
 
-CORPUS: list[dict] = [
-    {
-        "file_name": "it_设备管理制度.md", "dept": "IT部", "perm": ("global", None),
-        "content": """# IT 设备管理制度
+# 语料目录：deploy/seed/corpus/*.md
+# 文件名前缀 → 部门与权限映射（展示四种权限实体中的三种 + 角色）：
+#   it_    → IT部   全局公开
+#   hr_    → HR部   仅本部门
+#   fin_   → 财务部  仅本部门
+#   admin_ → 行政部  全局公开
+#   mgmt_  → 管理层角色(kb_admin) 可见 —— 演示「角色」维度
+import os
+from pathlib import Path
 
-## 设备领用
-1. 新员工入职由 IT 部统一配发笔记本电脑一台，显示器一台。
-2. 领用设备需在资产系统登记，签字确认。
+CORPUS_DIR = Path(os.getenv(
+    "SEED_CORPUS_DIR",
+    str(Path(__file__).resolve().parents[3] / "deploy" / "seed" / "corpus"),
+))
 
-## 设备维修
-1. 设备故障请提交 IT 工单，响应时限为 4 小时。
-2. 人为损坏需照价赔偿。
+PERM_RULES = {
+    "it_":    ("IT部",   ("global", None)),
+    "hr_":    ("HR部",   ("department", "HR部")),
+    "fin_":   ("财务部",  ("department", "财务部")),
+    "admin_": ("行政部", ("global", None)),
+    "mgmt_":  ("IT部",   ("role", "kb_admin")),       # 文档归属 IT 部但按角色放行
+}
 
-## 网络使用
-办公网络分为办公网与访客网，访客网密码每月更换一次。""",
-    },
-    {
-        "file_name": "hr_考勤制度.md", "dept": "HR部", "perm": ("department", None),  # None → 所属部门
-        "content": """# 员工考勤制度
 
-## 工作时间
-标准工作时间为 9:00-18:00，午休 1 小时。
+def load_corpus() -> list[dict]:
+    """优先读取语料目录；目录缺失时回退到内置最小集。"""
+    docs: list[dict] = []
+    if CORPUS_DIR.exists():
+        for path in sorted(CORPUS_DIR.glob("*.md")):
+            prefix = next((p for p in PERM_RULES if path.name.startswith(p)), None)
+            if prefix is None:
+                continue
+            dept, perm = PERM_RULES[prefix]
+            docs.append({"file_name": path.name, "dept": dept,
+                         "perm": perm, "content": path.read_text(encoding="utf-8")})
+    return docs
 
-## 迟到与早退
-1. 每月允许 2 次 10 分钟内的弹性迟到。
-2. 超过 30 分钟按半天事假计。
 
-## 请假流程
-请假需提前一天在 OA 系统提交，3 天以上需部门总监审批。""",
-    },
-    {
-        "file_name": "hr_薪酬保密制度.md", "dept": "HR部", "perm": ("department", None),
-        "content": """# 薪酬保密制度
-
-1. 员工薪酬信息属于公司机密，禁止互相打探、透露。
-2. 薪酬调整结果仅由 HR 与直属负责人沟通。
-3. 违反保密规定者视情节严重程度给予警告直至解除劳动合同。""",
-    },
-    {
-        "file_name": "fin_费用报销制度.md", "dept": "财务部", "perm": ("department", None),
-        "content": """# 费用报销制度
-
-## 报销时限
-费用发生后应在 5 个工作日内提交报销单。
-
-## 发票要求
-1. 必须提供增值税发票原件，抬头与税号正确。
-2. 餐费报销需注明事由与参与人员名单。
-
-## 审批层级
-500 元以下部门经理审批；500-5000 元财务总监审批；5000 元以上总经理审批。""",
-    },
-]
+CORPUS: list[dict] = []
 
 ROLES = {
     "kb_admin": ("知识管理员", ["ai:chat", "kb:unit:edit", "kb:import",
@@ -94,13 +80,20 @@ def run(reindex: bool) -> None:
     try:
         # ---- 部门 ----
         depts: dict[str, Department] = {}
-        for name in ("IT部", "HR部", "财务部"):
+        for name in ("IT部", "HR部", "财务部", "行政部"):
             dept = db.query(Department).filter(Department.name == name).first()
             if not dept:
                 dept = Department(name=name)
                 db.add(dept)
                 db.flush()
             depts[name] = dept
+
+        def _to_target(target_type: str, raw):
+            if target_type == "department":
+                return depts[raw].id
+            if target_type == "role":
+                return roles[raw].id
+            return raw  # global → None
 
         # ---- 角色 ----
         roles: dict[str, Role] = {}
@@ -136,9 +129,13 @@ def run(reindex: bool) -> None:
         db.commit()
 
         # ---- 知识单元 ----
+        docs = load_corpus()
+        print(f"[seed] 语料目录载入 {len(docs)} 篇: {[d['file_name'] for d in docs]}")
+        if not docs:
+            print("[hint] 检查 SEED_CORPUS_DIR 环境变量或 compose 卷挂载")
         pipeline = ImportPipeline(lambda: SessionLocal())
         created = 0
-        for doc in CORPUS:
+        for doc in docs:
             unit_code = "SEED-" + doc["file_name"]
             if db.query(KnowledgeUnit).filter(KnowledgeUnit.unit_code == unit_code).first():
                 continue
@@ -163,7 +160,7 @@ def run(reindex: bool) -> None:
                 for c in chunks
             ])
             target_type, raw_target = doc["perm"]
-            target_id = depts[doc["dept"]].id if (target_type == "department" and raw_target is None) else raw_target
+            target_id = _to_target(target_type, raw_target or doc["dept"])
             db.add(UnitPermission(unit_id=unit.id, target_type=target_type, target_id=target_id))
             db.commit()
 

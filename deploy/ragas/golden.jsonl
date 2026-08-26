@@ -1,12 +1,19 @@
-{"question": "新员工如何领用电脑？", "ground_truth": "新员工入职由 IT 部统一配发笔记本电脑一台，显示器一台，领用时需在资产系统登记并签字确认。", "expected_dept": "any", "expect_unauthorized": false}
-{"question": "办公设备坏了怎么报修？", "ground_truth": "设备故障请提交 IT 工单，响应时限为 4 小时；人为损坏需照价赔偿。", "expected_dept": "any", "expect_unauthorized": false}
-{"question": "公司工作时间是怎么规定的？", "ground_truth": "标准工作时间为 9:00-18:00，午休 1 小时。", "expected_dept": "HR部", "expect_unauthorized": false, "note": "（权限拒绝行为由场景②冒烟单独覆盖）"}
-{"question": "迟到会怎么处理？", "ground_truth": "每月允许 2 次 10 分钟内的弹性迟到；超过 30 分钟按半天事假计。", "expected_dept": "HR部", "expect_unauthorized": false, "note": "（权限拒绝行为由场景②冒烟单独覆盖）"}
-{"question": "薪酬可以互相打听吗？", "ground_truth": "员工薪酬信息属于公司机密，禁止互相打探、透露；违规者将视情节受到警告直至解除劳动合同的处分。", "expected_dept": "HR部", "expect_unauthorized": false, "note": "（权限拒绝行为由场景②冒烟单独覆盖）"}
-{"question": "费用报销有没有时间限制？", "ground_truth": "费用发生后应在 5 个工作日内提交报销单。", "expected_dept": "财务部", "expect_unauthorized": false, "note": "（权限拒绝行为由场景②冒烟单独覆盖）"}
-{"question": "餐费报销需要注意什么？", "ground_truth": "餐费报销需注明事由与参与人员名单，且必须提供抬头与税号正确的增值税发票原件。", "expected_dept": "财务部", "expect_unauthorized": false, "note": "（权限拒绝行为由场景②冒烟单独覆盖）"}
-{"question": "5000 元以上的费用由谁审批？", "ground_truth": "500 元以下部门经理审批；500-5000 元财务总监审批；5000 元以上总经理审批。", "expected_dept": "财务部", "expect_unauthorized": false, "note": "（权限拒绝行为由场景②冒烟单独覆盖）"}
-{"question": "访客网络密码是多少？", "ground_truth": "办公网络分为办公网与访客网，访客网密码每月更换一次（具体密码请联系 IT 部获取）。", "expected_dept": "IT部", "expect_unauthorized": false}
-{"question": "请假三天需要谁批准？", "ground_truth": "请假需提前一天在 OA 系统提交，3 天以上需部门总监审批。", "expected_dept": "HR部", "expect_unauthorized": false, "note": "（权限拒绝行为由场景②冒烟单独覆盖）"}
-{"question": "年假有几天？", "ground_truth": "", "expected_dept": "any", "expect_unauthorized": false, "note": "知识库未覆盖 → 期望模型明确拒答/说明缺少信息"}
-{"question": "股票代码是什么？", "ground_truth": "", "expected_dept": "any", "expect_unauthorized": false, "note": "无关问题 → 期望拒答"}
+{"question": "新员工入职配发什么电脑？", "ground_truth": "由 IT 部统一配发笔记本电脑一台（ThinkPad E14 或同级）与 27 英寸显示器一台，领用须在资产系统登记并签字确认。", "user": "it001"}
+{"question": "办公设备坏了怎么报修？", "ground_truth": "提交 IT 工单（portal.it.company.com），响应时限 4 小时；人为损坏照价赔偿；笔记本购买三年后不再维修直接换新。", "user": "it001"}
+{"question": "密码多久需要更换一次？有什么复杂度要求？", "ground_truth": "每 90 天强制更换，长度不少于 10 位且包含大小写字母、数字、特殊字符中至少三类，不得与前 5 次重复。", "user": "it001"}
+{"question": "VPN 账号有效期多长？", "ground_truth": "默认 6 个月，到期自动停用，续用需重新审批。", "user": "it001"}
+{"question": "数据库备份多久做一次？保留多久？", "ground_truth": "核心 MySQL 每日凌晨 2 点全量+每小时增量 binlog；每日全量保留 30 天，月末全量长期保留至少 2 年，财务备份保留 5 年。", "user": "admin"}
+{"question": "公司几点上班？弹性工时怎么申请？", "ground_truth": "标准工作时间 9:00-18:00 午休 1 小时；研发岗可申请 10:00-19:00 弹性工时。", "user": "hr001"}
+{"question": "迟到会扣钱吗？", "ground_truth": "每月允许 2 次 10 分钟内弹性迟到不扣款；超 30 分钟未打卡且无请假记录按半天事假计。", "user": "it001"}
+{"question": "加班有餐费补贴吗？调休怎么算？", "ground_truth": "工作日加班满 2 小时报销 30 元餐费；周末加班优先调休，1 天=1 天，6 个月内有效。", "user": "it001"}
+{"question": "年假有多少天？可以攒着明年用吗？", "ground_truth": "按司龄：满 1 年 5 天、满 3 年 8 天、满 5 年 12 天、满 10 年 15 天；当年有效，最多结转至次年 3 月 31 日。", "user": "hr001"}
+{"question": "外部培训费能报销吗？比例多少？", "ground_truth": "认证考试费通过后 100% 报销，培训课程费报销 70%；单人年度上限 5000 元，超出需总经理特批。", "user": "hr001"}
+{"question": "发票丢了还能报销吗？电子发票要注意什么？", "ground_truth": "必须提供增值税发票原件；电子发票须查验真伪并附查验截图，同一张发票不得重复报销。", "user": "fin001"}
+{"question": "供应商付款前要满足哪些条件？", "ground_truth": "合同签署生效归档、交付验收合格双方签字、收到等额增值税专用发票，三单匹配后付款。", "user": "fin001"}
+{"question": "预付款比例最高能到多少？", "ground_truth": "仅限采购金额超过 50 万元或定制开发类合同，预付比例不超过 30%。", "user": "fin001"}
+{"question": "预算执行到多少会触发预警？冻结期是什么时候？", "ground_truth": "单科目使用率达 80% 财务自动预警；每年 12 月 15-31 日为预算冻结期。", "user": "fin001"}
+{"question": "会议室预定后没去开会会有什么后果？泰山厅能坐多少人？", "ground_truth": "预定后 15 分钟未使用系统自动释放，累计 3 次预定未用限制预定一周；泰山厅容量 20 人。", "user": "it001"}
+{"question": "去上海出差住宿标准是多少？打车有上限吗？", "ground_truth": "上海属一线城市：普通员工 600 元/晚、经理 800 元/晚、总监及以上 1200 元/晚；市内交通实报实销每日封顶 100 元。", "user": "it001"}
+{"question": "采购合同的审批权限是怎么划分的？", "ground_truth": "≤50 万部门总监审批；50-200 万财务总监+总经理双批；>200 万总经理办公会；超 20 万或涉数据处理须经法务审查。", "user": "admin", "note": "mgmt_ 文档仅 kb_admin 角色可见——验证角色维度（超管旁路可见全部）"}
+{"question": "公司的注册资本是多少？", "ground_truth": "", "user": "admin", "expect_refusal": true}
+{"question": "食堂的承包商是哪家公司？", "ground_truth": "", "user": "it001", "expect_refusal": true}

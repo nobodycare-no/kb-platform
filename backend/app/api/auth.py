@@ -38,7 +38,9 @@ def login(payload: LoginRequest, db: Annotated[Session, Depends(get_db)]):
     if user.status != 1:
         return fail(403, 4301, "账号已停用，请联系管理员")
 
-    svc = PermissionService(db)
+    from app.core.redis_client import get_redis
+
+    svc = PermissionService(db, redis_client=get_redis())
     body = _user_payload(user, svc.permission_codes(user.id))
     settings = get_settings()
     token = create_token(
@@ -61,4 +63,6 @@ def login(payload: LoginRequest, db: Annotated[Session, Depends(get_db)]):
 @router.get("/me")
 def me(request: Request, db: Annotated[Session, Depends(get_db)]):
     user: User = resolve_user(request, db)
-    return ok(_user_payload(user, PermissionService(db).permission_codes(user.id)))
+    from app.core.redis_client import get_redis
+
+    return ok(_user_payload(user, PermissionService(db, redis_client=get_redis()).permission_codes(user.id)))

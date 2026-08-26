@@ -243,7 +243,8 @@ async def run_stream(ctx: ChainContext, *, user_id: int, department_id: int | No
 
         yield "sources", {"items": [
             {"citation": c["citation"], "unit_id": top[i].unit_id,
-             "seq": top[i].seq, "title": c["title"]}
+             "seq": top[i].seq, "title": c["title"],
+             "content": c["content"]}
             for i, c in enumerate(contexts)
         ]}
         if unauthorized:

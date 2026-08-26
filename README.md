@@ -8,13 +8,13 @@
 
 ```mermaid
 graph TB
-    Browser["Vue3 SPA"] -->|HTTPS| NGINX["web (nginx)<br/>静态托管+/api反代"]
+    Browser["Vue3 SPA"] -->|HTTPS| NGINX["web nginx<br/>静态托管 + api反代"]
     subgraph CPU ["CPU 平面 docker-compose"]
-        NGINX --> BE["backend :8000<br/>认证/RBAC/知识/权限引擎"]
-        BE [("MySQL 8 事实源")]
-        BE [("Redis 缓存")]
-        BE -.->|"SSE 代理"| AIS["ai-service :8001<br/>ModelGateway/RAG链路"]
-        AIS --> MV[("Milvus<br/>kb_chunks/faq_vectors")]
+        NGINX --> BE["backend 8000<br/>认证 RBAC 知识 权限引擎"]
+        BE --> MYSQL[("MySQL 8<br/>事实源")]
+        BE --> RD[("Redis<br/>权限快照 FAQ缓存")]
+        BE -.->|"SSE 代理"| AIS["ai-service 8001<br/>ModelGateway RAG链路"]
+        AIS --> MV[("Milvus<br/>kb_chunks faq_vectors")]
     end
     AIS -.->|"HTTP+Key"| GPU["AutoDL GPU<br/>vLLM Qwen3-8B / bge-m3 / bge-reranker"]
 ```

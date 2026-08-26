@@ -13,6 +13,7 @@ from app.core.errors import ApiError
 from app.core.responses import fail, ok
 from app.db import get_db
 from app.models import ImportTask, KnowledgeChunk, KnowledgeUnit, User
+from app.schemas.knowledge import PermissionSetRequest
 from app.services.chunker import chunk_text
 from app.services.import_pipeline import ImportPipeline, save_blob
 from app.services.parsers import ALLOWED_EXTENSIONS, MAX_SIZE_BYTES
@@ -158,6 +159,36 @@ def get_unit(
     return ok(data)
 
 
+@router.put("/units/{unit_id}/permissions")
+def set_unit_permissions(
+    unit_id: int,
+    payload: PermissionSetRequest,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    _: Annotated[User, Depends(require_perms("kb:unit:edit"))],
+):
+    from app.models import UnitPermission as UP
+    if db.query(KnowledgeUnit).filter(KnowledgeUnit.id == unit_id).first() is None:
+        raise ApiError(404, 4404, "知识单元不存在")
+    cleaned = []
+    for item in payload.items:
+        t = item.get("target_type")
+        if t not in ("global", "department", "role", "user"):
+            raise ApiError(400, 4400, f"非法 target_type: {t}")
+        tid = item.get("target_id")
+        if t != "global" and (tid is None or not isinstance(tid, int)):
+            raise ApiError(400, 4400, f"{t} 类型必须提供 target_id")
+        cleaned.append((t, None if t == "global" else int(tid)))
+    db.query(UP).filter(UP.unit_id == unit_id).delete()
+    for t, tid in dict.fromkeys(cleaned):
+        db.add(UP(unit_id=unit_id, target_type=t, target_id=tid))
+    db.commit()
+    rows = db.query(UP).filter(UP.unit_id == unit_id).all()
+    return ok({"unit_id": unit_id,
+               "permissions": [{"target_type": r.target_type, "target_id": r.target_id}
+                               for r in rows]})
+
+
 @router.put("/units/{unit_id}")
 def update_unit(
     unit_id: int,
@@ -252,7 +283,9 @@ def check_permissions(
     if caller is not None and target_user_id != caller.id and not caller.is_super:
         raise ApiError(403, 4303, "只能查询本人权限")
 
-    result = PermissionService(db).check(
+    from app.core.redis_client import get_redis
+
+    result = PermissionService(db, redis_client=get_redis()).check(
         user_id=target.id, department_id=target.department_id,
         is_super=bool(target.is_super), unit_ids=unit_ids,
     )

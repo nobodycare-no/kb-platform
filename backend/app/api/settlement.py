@@ -1,7 +1,6 @@
 """知识沉淀接口（SRD FR-F / AC-07/08）：挖掘、审核发布、缺口。"""
 from typing import Annotated
 
-import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -9,26 +8,13 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.deps import get_current_user, require_perms
 from app.core.errors import ApiError
+from app.core.redis_client import get_redis
 from app.core.responses import ok
 from app.db import get_db
 from app.models import Faq, KnowledgeGap, User
 from app.services.settlement_service import approve_and_cache, run_mining
 
 router = APIRouter(prefix="/api/settlement", tags=["settlement"])
-
-_redis_client = None
-
-
-def _redis():
-    """懒创建异步 Redis 客户端；失败返回 None（缓存优雅降级）。"""
-    global _redis_client
-    if _redis_client is None:
-        try:
-            _redis_client = aioredis.from_url(get_settings().redis_url,
-                                              decode_responses=True)
-        except Exception:
-            return None
-    return _redis_client
 
 
 @router.get("/faqs/recommendations")
@@ -68,7 +54,7 @@ async def review(
     if payload.action == "approve":
         from app.core.deps import resolve_user  # noqa: F401
         approve_and_cache(db, faq_id, payload.edited_answer,
-                          redis_client=_redis(),
+                          redis_client=get_redis(),
                           internal_token=get_settings().internal_token,
                           ai_base_url=get_settings().ai_service_base_url)
         return ok({"status": "published"})

@@ -81,7 +81,10 @@ services:
     environment:
       MYSQL_URL: "mysql+pymysql://kb:${DB_PASSWORD:-kb123456}@mysql:3306/kb_platform?charset=utf8mb4"
       REDIS_URL: "redis://redis:6379/0"
-      MILVUS_URI: "milvus-standalone:19530"
+      MILVUS_URI: "http://milvus-standalone:19530"
+      SEED_CORPUS_DIR: "/srv/corpus"
+    volumes:
+      - "./seed/corpus:/srv/corpus:ro"
     depends_on:
       mysql:
         condition: service_healthy

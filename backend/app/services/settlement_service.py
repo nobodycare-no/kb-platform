@@ -13,7 +13,10 @@ from app.models import Faq, KnowledgeGap, QaAccessLog
 
 
 def _normalize(q: str) -> str:
-    return "".join((q or "").split()).lower()
+    """与 ai-service normalize() 保持一致：NFKC 全半角统一 + 去空白 + 小写。"""
+    import unicodedata
+    t = unicodedata.normalize("NFKC", q or "")
+    return "".join(t.split()).lower()
 
 
 def run_mining(db: Session, *, days: int = 7, min_freq: int = 3,

@@ -51,10 +51,14 @@ async def ask_once(base: str, token: str, question: str) -> dict:
                     events.append((ev, data))
     answer = "".join(d["delta_text"] for e, d in events if e == "delta")
     sources = next((d["items"] for e, d in events if e == "sources"), [])
+    contexts = [
+        (s.get("title", "") + "\n" + s.get("content", "")).strip()
+        for s in sources
+    ]
     unauthorized = next((d["units"] for e, d in events if e == "unauthorized"), [])
     done = next((d for e, d in events if e == "done"), {})
     return {"answer": answer,
-            "contexts": [s.get("title", "") + "\n" for s in sources],
+            "contexts": contexts,
             "unauthorized": unauthorized,
             "degraded": done.get("degraded", False),
             "tokens": done.get("total_tokens", 0)}
@@ -77,17 +81,24 @@ def main() -> int:
     samples, rows = [], []
     for item in golden:
         t0 = time.time()
-        result = asyncio.run(ask_once(args.backend, login["access_token"], item["question"]))
+        ask_user = item.get("user", args.username)
+        tok = httpx.post(f"{args.backend}/api/auth/login",
+                         json={"username": ask_user, "password": "Abc12345!"}
+                         ).json()["data"]["access_token"]
+        result = asyncio.run(ask_once(args.backend, tok, item["question"]))
         ms = int((time.time() - t0) * 1000)
-        expect_refusal = item.get("expect_unauthorized") or not item["ground_truth"]
-        ok_flag = (not result["answer"]) or ("暂未找到" in result["answer"]) if expect_refusal else bool(result["answer"])
-        rows.append({"question": item["question"], "answer": result["answer"],
+        expect_refusal = item.get("expect_refusal") or item.get("expect_unauthorized") \
+            or not item["ground_truth"]
+        refused = "暂未找到" in result["answer"] or not result["answer"].strip()
+        ok_flag = refused if expect_refusal else bool(result["answer"])
+        rows.append({"question": item["question"], "user": ask_user,
+                     "answer": result["answer"],
                      "contexts": "\n---\n".join(result["contexts"]),
-                     "expect_unauthorized": item.get("expect_unauthorized", False),
-                     "refused": "暂未找到" in result["answer"],
+                     "expect_refusal": expect_refusal,
+                     "refused": refused,
                      "judge_ok": ok_flag, "latency_ms": ms,
                      "degraded": result["degraded"], "tokens": result["tokens"]})
-        print(f"[{'OK ' if ok_flag else 'MISS'}] {item['question'][:24]}  {ms}ms")
+        print(f"[{'OK ' if ok_flag else 'MISS'}] ({ask_user}) {item['question'][:24]}  {ms}ms")
 
     stamp = time.strftime("%Y%m%d-%H%M%S")
     out_csv = HERE / f"ragas_report_{stamp}.csv"

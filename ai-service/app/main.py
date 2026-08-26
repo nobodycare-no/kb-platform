@@ -117,6 +117,17 @@ def create_app(gateway: ModelGateway | None = None, settings: Settings | None = 
         from app.retrieval.faq_cache import FaqCacheService
 
         if app.state.chain_ctx is None:
+            sync_redis = None
+            try:
+                import redis as redis_sync
+
+                sync_redis = redis_sync.Redis.from_url(
+                    gw.settings.redis_url,
+                    decode_responses=True, socket_connect_timeout=1, socket_timeout=2)
+                sync_redis.ping()
+            except Exception:
+                sync_redis = None
+
             async def fetch_faq_answer(faq_id: int) -> dict | None:
                 client = gw._http()
                 try:
@@ -134,7 +145,7 @@ def create_app(gateway: ModelGateway | None = None, settings: Settings | None = 
             faq_cache = FaqCacheService(
                 gateway=gw,
                 store=_store(),
-                redis_client=None,          # Redis 快照在 S7 接入（FR-C04 P1）
+                redis_client=sync_redis,    # L1 精确缓存（FR-F03 / FR-C04 同源）
                 faq_answer_fetcher=fetch_faq_answer,
                 exact_sim=gw.settings.faq_exact_sim,
             )
