@@ -10,12 +10,12 @@ import json
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.config import Settings, get_settings
-from app.gateway.model_gateway import ModelGateway
+from app.gateway.model_gateway import ModelGateway, ModelUnavailable
 
 
 def create_app(gateway: ModelGateway | None = None, settings: Settings | None = None,
@@ -35,6 +35,13 @@ def create_app(gateway: ModelGateway | None = None, settings: Settings | None = 
     def verify_internal(x_internal_token: str = Header(default="")) -> None:
         if not hmac.compare_digest(x_internal_token, gw.settings.internal_token):
             raise HTTPException(status_code=401, detail="invalid internal token")
+
+    @app.exception_handler(ModelUnavailable)
+    async def model_unavailable_handler(_: Request, exc: ModelUnavailable):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(status_code=503,
+                            content={"code": 4503, "message": f"模型服务不可用: {exc}", "data": None})
 
     @app.get("/health")
     def health() -> dict:

@@ -1,0 +1,12 @@
+{"question": "新员工如何领用电脑？", "ground_truth": "新员工入职由 IT 部统一配发笔记本电脑一台，显示器一台，领用时需在资产系统登记并签字确认。", "expected_dept": "any", "expect_unauthorized": false}
+{"question": "办公设备坏了怎么报修？", "ground_truth": "设备故障请提交 IT 工单，响应时限为 4 小时；人为损坏需照价赔偿。", "expected_dept": "any", "expect_unauthorized": false}
+{"question": "公司工作时间是怎么规定的？", "ground_truth": "标准工作时间为 9:00-18:00，午休 1 小时。", "expected_dept": "HR部", "expect_unauthorized": true}
+{"question": "迟到会怎么处理？", "ground_truth": "每月允许 2 次 10 分钟内的弹性迟到；超过 30 分钟按半天事假计。", "expected_dept": "HR部", "expect_unauthorized": true}
+{"question": "薪酬可以互相打听吗？", "ground_truth": "员工薪酬信息属于公司机密，禁止互相打探、透露；违规者将视情节受到警告直至解除劳动合同的处分。", "expected_dept": "HR部", "expect_unauthorized": true}
+{"question": "费用报销有没有时间限制？", "ground_truth": "费用发生后应在 5 个工作日内提交报销单。", "expected_dept": "财务部", "expect_unauthorized": true}
+{"question": "餐费报销需要注意什么？", "ground_truth": "餐费报销需注明事由与参与人员名单，且必须提供抬头与税号正确的增值税发票原件。", "expected_dept": "财务部", "expect_unauthorized": true}
+{"question": "5000 元以上的费用由谁审批？", "ground_truth": "500 元以下部门经理审批；500-5000 元财务总监审批；5000 元以上总经理审批。", "expected_dept": "财务部", "expect_unauthorized": true}
+{"question": "访客网络密码是多少？", "ground_truth": "办公网络分为办公网与访客网，访客网密码每月更换一次（具体密码请联系 IT 部获取）。", "expected_dept": "IT部", "expect_unauthorized": false}
+{"question": "请假三天需要谁批准？", "ground_truth": "请假需提前一天在 OA 系统提交，3 天以上需部门总监审批。", "expected_dept": "HR部", "expect_unauthorized": true}
+{"question": "年假有几天？", "ground_truth": "", "expected_dept": "any", "expect_unauthorized": false, "note": "知识库未覆盖 → 期望模型明确拒答/说明缺少信息"}
+{"question": "股票代码是什么？", "ground_truth": "", "expected_dept": "any", "expect_unauthorized": false, "note": "无关问题 → 期望拒答"}

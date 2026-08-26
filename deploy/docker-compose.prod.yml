@@ -1,0 +1,20 @@
+# 生产部署 override：docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+services:
+  web:
+    ports: ["80:80"]          # 生产唯一公网入口（如需 HTTPS 另配证书层）
+  backend:
+    restart: always
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
+  ai-service:
+    restart: always
+    logging: { driver: json-file, options: { max-size: "10m", max-file: "3" } }
+  mysql:
+    restart: always
+  redis:
+    restart: always
+  milvus-standalone:
+    restart: always
+  milvus-etcd:
+    restart: always
+  milvus-minio:
+    restart: always
