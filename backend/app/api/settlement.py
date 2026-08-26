@@ -14,7 +14,7 @@ from app.db import get_db
 from app.models import Faq, KnowledgeGap, User
 from app.services.settlement_service import approve_and_cache, run_mining
 
-router = APIRouter(prefix="/settlement", tags=["settlement"])
+router = APIRouter(prefix="/api/settlement", tags=["settlement"])
 
 _redis_client = None
 
