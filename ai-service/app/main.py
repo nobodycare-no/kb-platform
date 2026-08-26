@@ -91,6 +91,18 @@ def create_app(gateway: ModelGateway | None = None, settings: Settings | None = 
         store.delete_unit(unit_id)
         return {"deleted": unit_id}
 
+    class FaqUpsertRequest(BaseModel):
+        faq_id: int
+        question: str
+
+    @app.post("/internal/faq/upsert")
+    async def faq_upsert(req: FaqUpsertRequest, _: None = Depends(verify_internal)) -> dict:
+        """FAQ 发布时写语义缓存（L2）。"""
+        store = _store()
+        vector = await gw.embed([req.question])
+        store.upsert_faq(req.faq_id, req.question, vector[0])
+        return {"upserted": req.faq_id}
+
     # ---------- 鉴权 RAG 流式问答（SDD §4.1）----------
 
     def _chain_ctx():
