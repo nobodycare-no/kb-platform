@@ -1,0 +1,33 @@
+# 开发调试工具栈：仅本机使用，生产环境永远不要加载此文件
+# 用法：
+#   docker compose -f docker-compose.yml -f compose.dev-tools.yml up -d attu
+#   docker compose -f docker-compose.yml -f compose.dev-tools.yml up -d milvus-minio
+services:
+  # Milvus 官方图形界面 —— 浏览器打开 http://localhost:3000
+  # 连接地址填：milvus-standalone:19530
+  attu:
+    image: zilliz/attu:v2.4
+    environment:
+      MILVUS_URL: "milvus-standalone:19530"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - milvus-standalone
+    networks: [kbnet]
+
+  # 给 MinIO 开放回环端口：API 9000 / 控制台 9001
+  # 控制台 http://localhost:9001 （minioadmin / minioadmin）
+  milvus-minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+
+  # 给 Redis 开放回环端口（可选）
+  redis:
+    ports:
+      - "127.0.0.1:16379:6379"
+
+  # 给 MySQL 追加一个标准端口别名（与 13306 等效，习惯问题）
+  mysql:
+    ports:
+      - "127.0.0.1:13306:3306"
