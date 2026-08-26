@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     keyword_timeout_ms: int = 200
     rrf_k: int = 60
     rerank_top_n: int = 6
+    rerank_relevance_min: float = 0.05    # 相关性门控：仅拦截完全无关（重排分≈0）的召回
     faq_exact_sim: float = 0.92
 
 

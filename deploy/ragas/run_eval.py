@@ -23,15 +23,20 @@ from pathlib import Path
 
 import httpx
 
+os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")   # 本机代理会劫持 localhost
+os.environ.setdefault("no_proxy", "127.0.0.1,localhost")
+
 HERE = Path(__file__).parent
 
 
 async def ask_once(base: str, token: str, question: str) -> dict:
     events = []
-    async with httpx.AsyncClient(timeout=120) as cli:
+    async with httpx.AsyncClient(timeout=120, trust_env=False) as cli:
         async with cli.stream("POST", f"{base}/api/ai/chat/stream",
                               headers={"Authorization": f"Bearer {token}"},
                               json={"question": question}) as resp:
+            if resp.status_code != 200:
+                raise RuntimeError(f"chat/stream HTTP {resp.status_code}")
             buf = ""
             async for chunk in resp.aiter_bytes():
                 buf += chunk.decode("utf-8")
@@ -72,7 +77,7 @@ def main() -> int:
     samples, rows = [], []
     for item in golden:
         t0 = time.time()
-        result = asyncio.run(ask_once(args.backend, headers["Authorization"], item["question"]))
+        result = asyncio.run(ask_once(args.backend, login["access_token"], item["question"]))
         ms = int((time.time() - t0) * 1000)
         expect_refusal = item.get("expect_unauthorized") or not item["ground_truth"]
         ok_flag = (not result["answer"]) or ("暂未找到" in result["answer"]) if expect_refusal else bool(result["answer"])

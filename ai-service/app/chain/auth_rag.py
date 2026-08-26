@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Callable
 
+from app.core.config import get_settings
 from app.gateway.milvus_store import MilvusStore
 from app.gateway.model_gateway import ModelGateway, ModelUnavailable
 from app.retrieval.faq_cache import FaqCacheService
@@ -56,7 +57,13 @@ def build_prompt(question: str, contexts: list[dict]) -> str:
     ctx_text = "\n\n".join(lines)
     return (
         "你是企业知识库助手。请严格依据以下知识片段回答用户问题，"
-        "引用处使用 [n] 标注对应片段编号；片段不足以回答时明确说明缺少的信息，禁止编造。\n\n"
+        "引用处使用 [n] 标注对应片段编号。\n"
+        "重要规则：\n"
+        "1. 如果所有片段都没有包含回答问题所需的信息，"
+        "你必须且只能回复：「知识库中暂未找到与该问题相关的资料，建议补充相关文档或换个问法。」\n"
+        "2. 片段中没有出现的具体数值（天数、金额、比例、期限等）一律视为未知，"
+        "即使你知道其他来源的答案也不得写出来。\n"
+        "3. 禁止编造引用编号，[n] 必须对应真实存在的片段。\n\n"
         f"知识片段：\n{ctx_text}\n\n用户问题：{question}"
     )
 
@@ -175,13 +182,16 @@ async def run_stream(ctx: ChainContext, *, user_id: int, department_id: int | No
                             degraded=degraded, ms=elapsed)
             return
 
-        # ---- 重排（失败回退 RRF 序）----
+        # ---- 重排（失败回退 RRF 序）+ 相关性门控 ----
         try:
             scores = await ctx.gateway.rerank(question, [h.content for h in candidates])
             ranked = [c for _, c in sorted(zip(scores, candidates),
                                            key=lambda pair: pair[0], reverse=True)]
         except Exception:
-            ranked = list(candidates)
+            scores, ranked = [], list(candidates)
+        if scores and max(scores) < get_settings().rerank_relevance_min:
+            candidates = []          # 库内无相关知识：短路拒答，避免模型硬编
+            ranked = []
         top = ranked[: ctx.rerank_top_n]
 
         contexts = [{"citation": i + 1, "title": (h.title or
@@ -191,14 +201,44 @@ async def run_stream(ctx: ChainContext, *, user_id: int, department_id: int | No
         prompt = build_prompt(question, contexts)
         prompt_tokens = max(1, len(prompt) // 2)
 
-        # ---- 流式生成（内联发射 delta）----
+        # ---- 流式生成（内联发射 delta；过滤 Qwen3 <think> 思考链）----
         messages = [
             {"role": "system", "content": "你是严谨的企业知识库助手。"},
             {"role": "user", "content": prompt},
         ]
-        async for delta in ctx.gateway.chat_stream(messages):
-            answer_parts.append(delta)
-            yield "delta", {"delta_text": delta}
+        think_open = False
+        carry = ""
+        async for raw_delta in ctx.gateway.chat_stream(messages):
+            buf = carry + raw_delta
+            visible: list[str] = []
+            while buf:
+                if think_open:
+                    end = buf.find("</think>")
+                    if end == -1:
+                        buf = ""
+                    else:
+                        buf = buf[end + 8:]
+                        think_open = False
+                else:
+                    start = buf.find("<think>")
+                    if start == -1:
+                        keep = max(0, len(buf) - 7)
+                        tail = buf[keep:]
+                        if "<" in tail and "<think>".startswith(tail[tail.index("<"):]):
+                            visible.append(buf[:keep])
+                            carry = tail[tail.index("<"):]
+                            buf = ""
+                            break
+                        visible.append(buf)
+                        buf = ""
+                    else:
+                        visible.append(buf[:start])
+                        buf = buf[start + 7:]
+                        think_open = True
+            text_out = "".join(visible)
+            if text_out:
+                answer_parts.append(text_out)
+                yield "delta", {"delta_text": text_out}
         full = "".join(answer_parts)
 
         yield "sources", {"items": [

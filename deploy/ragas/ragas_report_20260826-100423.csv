@@ -1,0 +1,13 @@
+﻿question,answer,contexts,expect_unauthorized,refused,judge_ok,latency_ms,degraded,tokens
+新员工如何领用电脑？,,,False,False,False,39,False,0
+办公设备坏了怎么报修？,,,False,False,False,16,False,0
+公司工作时间是怎么规定的？,,,True,False,True,16,False,0
+迟到会怎么处理？,,,True,False,True,16,False,0
+薪酬可以互相打听吗？,,,True,False,True,16,False,0
+费用报销有没有时间限制？,,,True,False,True,15,False,0
+餐费报销需要注意什么？,,,True,False,True,20,False,0
+5000 元以上的费用由谁审批？,,,True,False,True,15,False,0
+访客网络密码是多少？,,,False,False,False,15,False,0
+请假三天需要谁批准？,,,True,False,True,15,False,0
+年假有几天？,,,False,False,True,14,False,0
+股票代码是什么？,,,False,False,True,14,False,0
