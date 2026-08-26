@@ -160,7 +160,7 @@ def run(reindex: bool) -> None:
                 for c in chunks
             ])
             target_type, raw_target = doc["perm"]
-            target_id = _to_target(target_type, raw_target or doc["dept"])
+            target_id = _to_target(target_type, raw_target)
             db.add(UnitPermission(unit_id=unit.id, target_type=target_type, target_id=target_id))
             db.commit()
 
