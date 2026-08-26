@@ -256,10 +256,6 @@ def _make_token(user_id: int, department_id: int) -> str:
     }, os.environ["JWT_SECRET"], algorithm="HS256")
 
 
-@pytest.mark.xfail(
-    reason="S5 遗留：微服务形态下召回为空（疑似 FULLTEXT/嵌入链路问题），待 GPU 真模型联调时定位",
-    strict=False,
-)
 def test_full_chain_permission_filtered_stream(cluster, seeded):
     base = cluster["backend"]
     headers = {"Authorization": "Bearer " + _make_token(seeded["alice_id"], department_id=1)}
@@ -304,7 +300,10 @@ def test_full_chain_permission_filtered_stream(cluster, seeded):
                 events.append((ev, data))
 
     names = [e for e, _ in events]
+    data_map = {e: d for e, d in events}
     assert names[0] == "message_start"
+    if "error" in names:
+        raise AssertionError(f"链路错误: {data_map['error']['message']}")
     assert "done" in names and "error" not in names
 
     data_map = {e: d for e, d in events}
@@ -323,8 +322,9 @@ def test_full_chain_permission_filtered_stream(cluster, seeded):
             "SELECT recalled_unit_ids, authorized_unit_ids, unauthorized_unit_ids "
             "FROM qa_access_logs ORDER BY id DESC LIMIT 1")).mappings().one()
     engine.dispose()
-    assert set(row["authorized_unit_ids"]) == {seeded["u1"]}
-    assert set(row["unauthorized_unit_ids"]) == {seeded["u2"]}
+    # 裸 SQL 读回 JSON 列为字符串，需反序列化
+    assert set(json.loads(row["authorized_unit_ids"])) == {seeded["u1"]}
+    assert set(json.loads(row["unauthorized_unit_ids"])) == {seeded["u2"]}
 
 
 def seeded_u1_text() -> str:

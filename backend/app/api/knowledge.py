@@ -225,13 +225,13 @@ def check_permissions(
     payload: dict,
     request: Request,
     db: Annotated[Session, Depends(get_db)],
-    user: Annotated[User, Depends(get_current_user)],
 ):
-    """ai-service 召回后回调；登录用户也可自查。
+    """鉴权回调（FR-C03，RAG 链路核心依赖）：ai-service 召回后调用；登录用户也可自查。
 
-    授权：JWT 用户仅可查本人；内部令牌或超管可查任意用户。
-    响应附带 units 元数据（标题/编码），供引用卡片与缺失提示使用。
+    双模认证：X-Internal-Token（服务间，可查任意用户）或用户 JWT（仅查本人，
+    超管例外）。响应附带 units 元数据供引用卡片与缺失提示使用。
     """
+    from app.core.deps import resolve_user
     from app.internal.deps import has_internal_token
     from app.services.permission_service import PermissionService
 
@@ -241,12 +241,16 @@ def check_permissions(
     except (KeyError, TypeError, ValueError):
         raise ApiError(400, 4400, "user_id 与 unit_ids 必填") from None
 
-    if target_user_id != user.id and not (user.is_super or has_internal_token(request)):
-        raise ApiError(403, 4303, "只能查询本人权限")
+    caller: User | None = None
+    if not has_internal_token(request):
+        caller = resolve_user(request, db)      # 无效登录抛 401
 
     target = db.query(User).filter(User.id == target_user_id).first()
     if target is None:
         raise ApiError(404, 4404, "目标用户不存在")
+
+    if caller is not None and target_user_id != caller.id and not caller.is_super:
+        raise ApiError(403, 4303, "只能查询本人权限")
 
     result = PermissionService(db).check(
         user_id=target.id, department_id=target.department_id,

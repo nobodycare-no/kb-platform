@@ -58,7 +58,11 @@ def create_app(gateway: ModelGateway | None = None, settings: Settings | None = 
     def _store():
         from app.gateway.milvus_store import MilvusStore
         if app.state.milvus is None:
-            app.state.milvus = MilvusStore(uri=gw.settings.milvus_uri, dim=gw.settings.embed_dim)
+            app.state.milvus = MilvusStore(
+                uri=gw.settings.milvus_uri, dim=gw.settings.embed_dim,
+                kb_collection=gw.settings.milvus_kb_collection,
+                faq_collection=gw.settings.milvus_faq_collection,
+            )
             app.state.milvus.ensure_collections()
         return app.state.milvus
 

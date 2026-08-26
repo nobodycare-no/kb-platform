@@ -44,7 +44,8 @@ class ModelGateway:
     # ---------- 基础设施 ----------
 
     def _http(self) -> httpx.AsyncClient:
-        if self._client is None:
+        # is_closed 防御：跨事件循环/生命周期复用时自动重建
+        if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(transport=self._transport)
         return self._client
 

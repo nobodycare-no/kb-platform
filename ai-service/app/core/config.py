@@ -41,6 +41,8 @@ class Settings(BaseSettings):
 
     # --- Milvus ---
     milvus_uri: str = "milvus-standalone:19530"
+    milvus_kb_collection: str = "kb_chunks"
+    milvus_faq_collection: str = "faq_vectors"
 
     # --- 检索参数（SDD §7）---
     dense_top_k: int = 50

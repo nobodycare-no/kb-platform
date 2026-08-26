@@ -117,21 +117,22 @@ async def run_stream(ctx: ChainContext, *, user_id: int, department_id: int | No
                         content=c["content"], title=c.get("unit_title", ""))
                     for c in resp.json().get("chunks", [])]
 
+        # 双路独立执行：kw 腿 200ms 熔断只影响自己，绝不连坐取消 dense（NFR-09）
+        dense_task = asyncio.create_task(_dense())
+        kw_hits: list[Hit] = []
         try:
-            dense_hits, kw_hits = await asyncio.gather(
-                _dense(),
-                asyncio.wait_for(_keyword(), timeout=ctx.keyword_timeout_ms / 1000),
-                return_exceptions=False,
-            )
-        except asyncio.TimeoutError:
-            kw_hits, dense_hits, degraded = [], [], True
-        except ModelUnavailable:
-            # embedding 故障：降级纯关键词（仍尝试 kw 腿）
+            kw_hits = await asyncio.wait_for(_keyword(), timeout=ctx.keyword_timeout_ms / 1000)
+        except Exception:
+            degraded = True          # 关键词腿超时/失败：仅弃用该路
+        try:
+            dense_hits = await dense_task
+        except Exception:
+            # embedding 故障：降级纯关键词（放宽时限重试一次）
+            dense_hits = []
             try:
                 kw_hits = await asyncio.wait_for(_keyword(), timeout=1.5)
-                dense_hits = []
-            except Exception:
-                raise
+            except Exception as e:
+                raise ModelUnavailable(f"dense 与 keyword 双路均不可用: {e}") from e
             degraded = True
 
         fused = fuse(dense_hits, kw_hits, k=ctx.rrf_k)
