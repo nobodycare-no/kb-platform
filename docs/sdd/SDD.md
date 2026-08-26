@@ -9,50 +9,62 @@
 
 ---
 
-## 1. 代码结构与模块划分
+## 1. 代码结构与模块划分（实现后实况）
 
 ```
 kb-platform/
 ├── backend/
 │   └── app/
-│       ├── main.py               # FastAPI 入口、路由挂载、启动初始化
-│       ├── core/                 # config.py(env)、security.py(JWT/bcrypt)、deps.py、rbac.py(拦截器)
-│       ├── models/               # SQLAlchemy ORM（13 张表）
-│       ├── schemas/              # Pydantic v2 请求/响应模型
-│       ├── api/                  # auth.py org.py knowledge.py permissions.py chat.py dashboard.py settlement.py admin_health.py
+│       ├── main.py               # 应用工厂：路由挂载 + ApiError/422 全局处理器
+│       ├── db.py                 # 引擎与会话工厂
+│       ├── core/                 # config(env)、security(JWT/bcrypt)、deps(resolve_user/require_perms)、
+│       │                         # errors(ApiError)、responses(统一响应包)、redis_client(共享客户端)
+│       ├── models/               # SQLAlchemy ORM，按域分组：
+│       │   ├── base.py           #   DeclarativeBase + TimestampMixin
+│       │   ├── org.py            #   users/departments/roles/user_roles/role_permissions
+│       │   ├── knowledge.py      #   knowledge_units/chunks/unit_permissions/import_tasks
+│       │   ├── qa.py             #   qa_sessions/qa_access_logs
+│       │   └── settlement.py     #   faqs/knowledge_gaps
+│       ├── schemas/              # auth_org.py、knowledge.py（Pydantic v2）
+│       ├── api/                  # auth / org / knowledge(含 check-permissions) /
+│       │                         # ai(会话+SSE代理) / dashboard / settlement / health
+│       ├── internal/             # 服务间端点：search/keyword、qa-logs、faq/{id}（X-Internal-Token）
 │       ├── services/
-│       │   ├── permission_engine.py   # 四维数据权限唯一实现
-│       │   ├── import_pipeline.py     # 解析→切片→向量化编排
-│       │   ├── parsers/               # pdf/docx/md/txt
-│       │   ├── chunker.py             # 切片策略
-│       │   ├── dashboard_service.py   # 看板聚合 SQL
-│       │   ├── settlement_service.py  # FAQ 挖掘/缺口聚类
-│       │   └── scheduler.py           # APScheduler 作业注册
-│       └── internal/             # 服务间内部端点(keyword检索/check-permissions已公开/log回写)
+│       │   ├── permission_engine.py    # 四维判定纯函数（零 IO，矩阵可测）
+│       │   ├── permission_service.py   # DB 取数 + Redis watermark 快照（FR-C04）
+│       │   ├── import_pipeline.py      # 解析→切片→正本→向量化编排（部分成功语义）
+│       │   ├── parsers.py              # txt/md/pdf/docx 单模块实现
+│       │   ├── chunker.py              # Markdown 标题感知滑窗切片
+│       │   └── settlement_service.py   # FAQ 频次挖掘 / 缺口聚合 / 发布注缓存
+│       └── tools/                # seed.py（幂等演示数据）· reindex.py（索引全量重建 CLI）
 ├── ai-service/
 │   └── app/
-│       ├── main.py
-│       ├── core/config.py        # 全部模型 env
-│       ├── gateway/model_gateway.py   # LLM主备/embed/rerank 适配层（双 rerank 协议）
-│       ├── retrieval/hybrid.py        # 双路召回+RRF
-│       ├── retrieval/faq_cache.py     # 两级FAQ缓存
-│       ├── chain/auth_rag.py          # 主管线：召回→权限回调→重排→Prompt→SSE
-│       └── api/chat.py health.py embed.py
-├── web/
-│   └── src/{api,stores,router,views,components,directives,utils}
-└── deploy/{docker-compose.yml, docker-compose.prod.yml, .env.example, mysql/init/, ragas/}
+│       ├── main.py               # 入口：health/models、internal/embed|kb/index|kb/unit|faq/upsert|
+│       │                         # rag/stream(SSE)；路由内联定义，chain_ctx 惰性构建
+│       ├── core/config.py        # 模型地址/协议/密钥 + Milvus/Redis + 检索参数（全 env）
+│       ├── gateway/
+│       │   ├── model_gateway.py  # LLM 主备粘性切换 / embed 双协议 / rerank 双协议 / health
+│       │   └── milvus_store.py   # kb_chunks+faq_vectors 集合管理与读写
+│       ├── retrieval/
+│       │   ├── hybrid.py         # Hit + RRF 融合纯函数
+│       │   └── faq_cache.py      # normalize/L1 hash/L2 语义两级缓存
+│       └── chain/auth_rag.py     # 主管线：FAQ→双路召回→权限回调→重排→<think>过滤→SSE
+├── web/src/{api,stores,router,views×9,directives}   # Vue3 八视图
+└── deploy/{compose×2, nginx.conf, mysql/init, seed/corpus×14, ragas/, acceptance/probe.py}
 ```
+
+> 与初稿差异说明：models 按域合并为 5 文件；parsers 为单模块；定时作业未接 cron
+> （挖掘由 `POST /api/settlement/mine` 手动触发）；新增 tools/ 与 internal/faq 路由。
 
 | 模块 | 职责 | 依赖 |
 |------|------|------|
-| backend.core | 配置/JWT/RBAC 拦截 | — |
+| backend.core | 配置/JWT/RBAC 依赖工厂/统一异常 | redis_client |
 | backend.api.* | REST 端点与参数校验 | services |
-| permission_engine | check-permissions 与用户权限快照缓存 | models, Redis |
-| import_pipeline | 文件→chunks→向量化的状态机（pending/parsing/embedding/done/failed） | parsers, ai-service /embed |
-| model_gateway | 三类模型的协议适配、重试、主备切换、连通性自检 | httpx/openai |
-| hybrid | Milvus 检索 + backend 内部关键词接口 + RRF 融合 | pymilvus, httpx |
-| auth_rag | 鉴权问答主管线与 SSE 事件发射 | gateway, hybrid, faq_cache |
-| web.views | 7 大页面区 | pinia stores |
+| permission_engine/service | 四维判定纯函数 + 批量取数与快照缓存 | models, Redis |
+| import_pipeline | 文件→chunks→向量化的状态机（pending/parsing/embedding/done/failed） | parsers, ai-service /internal/embed、/internal/kb/index |
+| model_gateway | 三类模型的协议适配、重试、主备切换、连通性自检 | httpx（MockTransport 可注入） |
+| hybrid / auth_rag | 双路召回 RRF 融合；鉴权问答主管线与 SSE 事件发射 | pymilvus, httpx, faq_cache |
+| web.views | 九大页面区 | pinia stores |
 
 ## 2. 领域类图
 
@@ -203,7 +215,7 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant SCH as APScheduler(backend)
+    participant SCH as 挖掘作业(backend, 手动/定时)
     participant MY as MySQL
     participant AIS as ai-service
     participant RD as Redis
@@ -230,7 +242,7 @@ sequenceDiagram
 - OpenAPI 文档由 FastAPI 自动产出（`/docs`），开发手册不重复罗列全部字段；
 - 内部接口统一前缀 `/internal/*`，仅接受 X-Internal-Token。
 
-关键端点清单（对齐规范 §2.9.8）：`POST /api/auth/login`；`GET /api/org/departments`；`GET|POST /api/org/users`、`PUT /api/org/users/{id}`；`GET /api/org/roles`、`POST /api/org/roles/{id}/permissions`；`POST /api/knowledge/import`；`GET|DELETE /api/knowledge/units`；`GET|PUT /api/knowledge/units/{id}`；`POST /api/knowledge/units/{id}/permissions`；`POST /api/knowledge/check-permissions`；`POST /api/ai/chat/stream`(SSE)；`GET /api/dashboard/metrics|rankings/questions|rankings/units|stats/tokens`；`GET /api/settlement/faqs/recommendations`；`POST /api/settlement/faqs/{id}/review`；`GET /api/settlement/knowledge-gaps`；内部：`GET /internal/search/keyword`、`POST /internal/embed`、`POST /internal/rag/stream`、`POST /internal/qa-logs`；运维：`GET /health/models`。
+关键端点清单（对齐规范 §2.9.8）：`POST /api/auth/login`、`GET /api/auth/me`；`GET /api/org/departments`；`GET|POST /api/org/users`、`PUT /api/org/users/{id}`；`GET /api/org/roles`、`POST /api/org/roles/{id}/permissions`；`POST /api/knowledge/import`、`GET /api/knowledge/import/tasks`；`GET|DELETE /api/knowledge/units`、`GET|PUT /api/knowledge/units/{id}`、`PUT /api/knowledge/units/{id}/permissions`；`POST /api/knowledge/check-permissions`；`POST|GET /api/ai/sessions`、`GET /api/ai/sessions/{id}/messages`、`POST /api/ai/chat/stream`(SSE)；`GET /api/dashboard/metrics|rankings/questions|rankings/units|stats/tokens`；`GET /api/settlement/faqs/recommendations|faqs/published`、`POST /api/settlement/faqs/{id}/review`、`POST /api/settlement/mine`、`GET /api/settlement/knowledge-gaps`；内部：`GET /internal/search/keyword`、`POST /internal/embed`、`POST /internal/kb/index`、`DELETE /internal/kb/unit/{unit_id}`、`POST /internal/rag/stream`、`POST /internal/qa-logs`、`GET|POST /internal/faq/*`；运维：`GET /health/models`。
 
 ## 6. 权限引擎算法
 
@@ -262,6 +274,7 @@ check(user_id, unit_ids):
 | DENSE_TOP_K / KEYWORD_TOP_K | 50 / 20 | 双路召回 |
 | RRF_K | 60 | 融合常数 |
 | RERANK_TOP_N | 6 | 进 Prompt 的片段数 |
+| RERANK_RELEVANCE_MIN | 0.05 | 相关性门控：重排最高分低于此值短路拒答（仅拦完全无关） |
 | FAQ_EXACT_SIM / GAP_SIM | 0.92 / 0.35 | 缓存直答阈值 / 缺口判定 |
 | KEYWORD_TIMEOUT_MS | 200 | 关键词召回腿超时熔断；超时弃用该路并置 degraded=true |
 | PERM_SNAPSHOT_TTL | 300 | 权限快照 Redis TTL（秒）；授权变更经 watermark 失效 |
@@ -294,7 +307,11 @@ EMBEDDING_MODEL=bge-m3
 RERANK_URL=http://your-autodl-host:6008/v1/rerank
 RERANK_HEALTH_URL=http://your-autodl-host:6008/health
 RERANK_PROTOCOL=custom            # custom={"query","documents"}->{"scores"}（AutoDL 实际协议）| tei
-MILVUS_URI=milvus-standalone:19530
+MILVUS_URI=http://milvus-standalone:19530
+MILVUS_KB_COLLECTION=kb_chunks        # 测试可用独立命名空间隔离
+MILVUS_FAQ_COLLECTION=faq_vectors
+REDIS_URL=redis://redis:6379/0        # ai-service L1 缓存读取端
+SEED_CORPUS_DIR=/srv/corpus           # backend 容器内语料挂载点
 # --- 业务参数见 SDD §7 ---
 ```
 
@@ -312,7 +329,9 @@ MILVUS_URI=milvus-standalone:19530
 | 权限 | 召回含无权单元 | 过滤+记录 | "您缺少 N 个相关知识的访问权限"提示卡 |
 | Milvus | 集合损坏/为空 | 检测后提示重建 | 管理页一键重建索引按钮 |
 
-## 10. 测试设计
+## 10. 测试设计与实现状态
+
+> 实测结果与证据链详见《测试评估报告》v1.1 与 `deploy/acceptance/probe_result.json`。
 
 | 层 | 内容 |
 |----|------|

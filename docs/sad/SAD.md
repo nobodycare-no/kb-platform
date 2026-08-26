@@ -57,7 +57,7 @@ graph TB
     AIS -->|"chat/completions + API Key"| VLLM
     AIS -->|embed 批量| EMB
     AIS -->|rerank| RERANK
-    BE -->|"APScheduler 定时挖掘<br/>经 AIS 批量向量化"| AIS
+    BE -->|"沉淀挖掘(手动触发端点)<br/>经 AIS 批量向量化"| AIS
 ```
 
 **信任边界**：浏览器 ↔ backend 之间是用户信任域（JWT）；backend ↔ ai-service 之间是内部信任域（X-Internal-Token 共享密钥，compose 内网互通，不对公网暴露端口）。ai-service 无 MySQL 凭据，权限判断只能回调 backend——保证权限规则只有一份实现。
@@ -67,7 +67,7 @@ graph TB
 | 服务 | 职责 | 明确不做 |
 |------|------|---------|
 | web | SPA 静态托管、同域反消 CORS、gzip | 不做业务逻辑 |
-| backend | JWT 签发校验、RBAC 拦截、组织/角色/部门、知识单元与导入任务、**权限引擎唯一实现**、看板聚合、FAQ 管理、APScheduler 沉淀作业、qa_access_logs 落库 | 不直接调用任何模型 API |
+| backend | JWT 签发校验、RBAC 拦截、组织/角色/部门、知识单元与导入任务、**权限引擎唯一实现**、看板聚合、FAQ 管理、沉淀挖掘作业（手动触发端点，cron 为增强项）、qa_access_logs 落库 | 不直接调用任何模型 API |
 | ai-service | ModelGateway（LLM 主备/embed/rerank 适配）、FAQ 缓存两级命中判断、混合召回、RRF 融合、权限回调、Prompt 组装、SSE 流式生成与用量采集 | 不持有 MySQL 连接；不自行判断权限 |
 | MySQL | 全部业务事实源（13 张表） | 不存明文密码 |
 | Milvus | 派生向量索引（kb_chunks、faq_vectors） | 不作为事实源 |
@@ -183,6 +183,6 @@ graph LR
 | 安全 | python-jose(Cryptography) + passlib[bcrypt] | — |
 | 模型接入 | openai SDK(OpenAI 兼容) + httpx | openai 1.x |
 | 解析 | pypdf + python-docx + markdown-it（md/txt 直读） | — |
-| 任务 | APScheduler（进程内，单 worker 部署假设已在文档声明） | 3.10 |
+| 定时任务 | APScheduler（依赖就位；v1 挖掘作业以手动触发端点交付，cron 为增强项） | 3.10 |
 | 存储 | MySQL 8.0 / Redis 7 / Milvus 2.4 standalone(etcd+minio) | — |
 | 测试评估 | pytest + httpx；RAGAS（指向同一 vLLM 端点评测） | ragas 0.1+ |
