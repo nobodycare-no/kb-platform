@@ -32,3 +32,6 @@ Thumbs.db
 
 # ---- docker local volumes ----
 deploy/volumes/
+
+# ---- pytest basetemp ----
+.bt/
