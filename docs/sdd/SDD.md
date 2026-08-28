@@ -117,27 +117,118 @@ classDiagram
 
 ```mermaid
 erDiagram
-    users ||--o{ user_roles : ""
-    roles ||--o{ user_roles : ""
-    roles ||--o{ role_permissions : ""
-    departments ||--o{ users : ""
-    knowledge_units ||--o{ knowledge_chunks : ""
-    knowledge_units ||--o{ unit_permissions : ""
-    qa_sessions ||--o{ qa_access_logs : ""
-    knowledge_units ||--o{ import_tasks : ""
+    departments ||--o{ departments : "上下级"
+    departments ||--o{ users : "归属"
+    users ||--o{ user_roles : "拥有"
+    roles ||--o{ user_roles : "被授予"
+    roles ||--o{ role_permissions : "具备"
+    knowledge_units ||--o{ knowledge_chunks : "切片"
+    knowledge_units ||--o{ unit_permissions : "授权"
+    knowledge_units ||--o{ import_tasks : "来源"
+    qa_sessions ||--o{ qa_access_logs : "记录"
 
-    users { bigint id PK; varchar username UK; varchar password_hash; varchar display_name; bigint department_id FK; tinyint status; datetime created_at }
-    departments { bigint id PK; bigint parent_id; varchar name; bigint leader_id; int sort_order }
-    roles { bigint id PK; varchar role_name; varchar role_code UK }
-    role_permissions { bigint id PK; bigint role_id FK; varchar permission_code; varchar permission_type }
-    knowledge_units { bigint id PK; varchar unit_code UK; varchar title; text content; varchar summary; varchar category; varchar source_file_name; tinyint status; bigint creator_id FK }
-    knowledge_chunks { bigint id PK; bigint unit_id FK; int seq_no; text content; char content_hash }
-    unit_permissions { bigint id PK; bigint unit_id FK; varchar target_type; bigint target_id }
-    qa_sessions { bigint id PK; bigint user_id FK; varchar title; datetime created_at }
-    qa_access_logs { bigint id PK; bigint session_id FK; bigint user_id FK; text question; text answer; json recalled_unit_ids; json authorized_unit_ids; json unauthorized_unit_ids; int prompt_tokens; int completion_tokens; int response_time_ms; datetime created_at }
-    faqs { bigint id PK; varchar question UK; text answer; varchar category; bigint related_unit_id FK; varchar source_type; varchar status; int hit_count; bigint reviewer_id }
-    knowledge_gaps { bigint id PK; varchar question_pattern; json sample_questions; int ask_count; datetime last_asked_at; varchar status; bigint resolved_unit_id }
-    import_tasks { bigint id PK; varchar file_name; varchar file_type; bigint size_bytes; varchar task_status; varchar error_message; bigint unit_id FK; datetime created_at }
+    users {
+        bigint id PK
+        varchar username UK
+        varchar password_hash
+        varchar display_name
+        bigint department_id FK
+        tinyint status
+        datetime created_at
+    }
+    departments {
+        bigint id PK
+        bigint parent_id
+        varchar name
+        bigint leader_id
+        int sort_order
+    }
+    roles {
+        bigint id PK
+        varchar role_name
+        varchar role_code UK
+    }
+    role_permissions {
+        bigint id PK
+        bigint role_id FK
+        varchar permission_code
+        varchar permission_type
+    }
+    knowledge_units {
+        bigint id PK
+        varchar unit_code UK
+        varchar title
+        text content
+        varchar summary
+        varchar category
+        varchar source_file_name
+        tinyint status
+        bigint creator_id FK
+    }
+    knowledge_chunks {
+        bigint id PK
+        bigint unit_id FK
+        int seq_no
+        text content
+        char content_hash
+    }
+    unit_permissions {
+        bigint id PK
+        bigint unit_id FK
+        varchar target_type
+        bigint target_id
+    }
+    qa_sessions {
+        bigint id PK
+        bigint user_id FK
+        varchar title
+        datetime created_at
+    }
+    qa_access_logs {
+        bigint id PK
+        bigint session_id FK
+        bigint user_id FK
+        text question
+        text answer
+        json recalled_unit_ids
+        json authorized_unit_ids
+        json unauthorized_unit_ids
+        int prompt_tokens
+        int completion_tokens
+        int total_tokens
+        int response_time_ms
+        datetime created_at
+    }
+    faqs {
+        bigint id PK
+        varchar question UK
+        text answer
+        varchar category
+        bigint related_unit_id FK
+        varchar source_type
+        varchar status
+        int hit_count
+        bigint reviewer_id
+    }
+    knowledge_gaps {
+        bigint id PK
+        varchar question_pattern
+        json sample_questions
+        int ask_count
+        datetime last_asked_at
+        varchar status
+        bigint resolved_unit_id
+    }
+    import_tasks {
+        bigint id PK
+        varchar file_name
+        varchar file_type
+        bigint size_bytes
+        varchar task_status
+        varchar error_message
+        bigint unit_id FK
+        datetime created_at
+    }
 ```
 
 ### 3.2 设计要点
